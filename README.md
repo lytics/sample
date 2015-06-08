@@ -3,6 +3,8 @@ sample
 
 The `sample` package implements weighted sampling in [Go](http://golang.org).
 
+[![Build Status](https://travis-ci.org/lytics/sample.svg?branch=master)](https://travis-ci.org/lytics/sample) [![GoDoc](https://godoc.org/github.com/lytics/sample?status.svg)](https://godoc.org/github.com/lytics/sample)
+
 ## Usage
 
 ```go
