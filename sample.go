@@ -3,16 +3,20 @@ package sample
 import (
 	"fmt"
 	"math/rand"
+	"strings"
+	"sync"
 )
 
 type Sampler struct {
 	rnd *rand.Rand
+	mu  *sync.Mutex
 }
 
 // NewSampler instantiates a new Sampler, using the seed provided to create a new `rand.Rand` object.
 func NewSampler(seed int64) *Sampler {
 	return &Sampler{
 		rand.New(rand.NewSource(seed)),
+		&sync.Mutex{},
 	}
 }
 
@@ -38,6 +42,14 @@ func (i index) Remove(which uint) index {
 }
 
 type vector []float64
+
+func (v vector) Copy() vector {
+	v2 := make(vector, len(v))
+	for i, vi := range v {
+		v2[i] = vi
+	}
+	return v2
+}
 
 func (v vector) Remove(which uint) vector {
 	if which >= uint(len(v)) {
@@ -77,29 +89,34 @@ func (v vector) CumProb() vector {
 
 	var cumsum float64
 	for i, val := range v {
-		cumprob[i] = cumsum
 		cumsum += val / sum
+		cumprob[i] = cumsum
 	}
 
 	return cumprob
 }
-
-func Find(w vector, val float64) int {
-	i := find(w, val)
-	if i < 0 {
-		i = 0
+func (v vector) String() string {
+	parts := make([]string, len(v))
+	for i, val := range v {
+		parts[i] = fmt.Sprintf("%.3f", val)
 	}
-	return i
+	return fmt.Sprintf("[%s]", strings.Join(parts, "  "))
 }
 
 func find(w vector, val float64) int {
 	for i, weight := range w {
-		if weight > val {
-			return i - 1
+		if val <= weight {
+			return i
 		}
 	}
-
 	return len(w) - 1
+}
+
+func (s *Sampler) randfloat() float64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.rnd.Float64()
 }
 
 // SampleFloats takes a slice of floats and returns a sample of n
@@ -107,7 +124,7 @@ func find(w vector, val float64) int {
 // specifies whether or not to sample with replacement.
 func (s *Sampler) SampleFloats(x []float64, n int, replace bool, weights vector) ([]float64, error) {
 	xindex := newIndex(len(x))
-	index, err := sample(xindex, n, replace, weights, s.rnd)
+	index, err := sample(xindex, n, replace, weights, s.randfloat)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +142,7 @@ func (s *Sampler) SampleFloats(x []float64, n int, replace bool, weights vector)
 // specifies whether or not to sample with replacement.
 func (s *Sampler) SampleInts(x []int, n int, replace bool, weights vector) ([]int, error) {
 	xindex := newIndex(len(x))
-	index, err := sample(xindex, n, replace, weights, s.rnd)
+	index, err := sample(xindex, n, replace, weights, s.randfloat)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +156,7 @@ func (s *Sampler) SampleInts(x []int, n int, replace bool, weights vector) ([]in
 }
 
 // return the sample index to the other public functions
-func sample(x index, n int, replace bool, weights vector, rnd *rand.Rand) ([]uint, error) {
+func sample(x index, n int, replace bool, weights vector, rnd func() float64) ([]uint, error) {
 	if weights != nil && len(x) != len(weights) {
 		return nil, fmt.Errorf("length of x (%d) unequal to length of weights (%d)", len(x), len(weights))
 	}
@@ -149,26 +166,27 @@ func sample(x index, n int, replace bool, weights vector, rnd *rand.Rand) ([]uin
 	}
 
 	// cumulative probabilities
-	var cumprob vector
-	if weights != nil {
-		cumprob = weights.CumProb()
-	} else {
-		cumprob = make(vector, len(x))
+	if weights == nil {
+		weights = make(vector, len(x))
 		nx := float64(len(x))
 		for i, _ := range x {
-			cumprob[i] = float64(i) / nx
+			weights[i] = 1 / nx
 		}
 	}
 
+	weights2 := weights.Copy()
+	cumprob := weights2.CumProb()
+
 	results := make([]uint, n)
 	for i := 0; i < n; i++ {
-		index := uint(Find(cumprob, rnd.Float64()))
-		results[i] = x[index]
+		idx := uint(find(cumprob, rnd()))
+		results[i] = x[idx]
 
 		// if sampling w/o replacement, remove the index and re-scale weights
 		if !replace {
-			x = x.Remove(index)
-			cumprob = cumprob.Remove(index).Scale()
+			x = x.Remove(idx)
+			weights2 = weights2.Remove(idx)
+			cumprob = weights2.Scale()
 		}
 	}
 
