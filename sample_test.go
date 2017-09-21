@@ -52,7 +52,35 @@ func TestRemoveIndex(t *testing.T) {
 func TestFind(t *testing.T) {
 	w := vector{1, 2, 3}
 	prob := w.CumProb()
+	assert.Equal(t, 0, find(prob, -0.01))
+	assert.Equal(t, 0, find(prob, 0.0))
+	assert.Equal(t, 0, find(prob, 0.16))
+	assert.Equal(t, 1, find(prob, 0.17))
+	assert.Equal(t, 2, find(prob, 0.99))
+	assert.Equal(t, 2, find(prob, 1.00))
+	assert.Equal(t, 2, find(prob, 1.01))
 
-	assert.Equal(t, 0, Find(prob, 0.16))
-	assert.Equal(t, 1, Find(prob, 0.17))
+	w2 := vector{0.1, 0.3, 0.4}
+	prob2 := w2.CumProb()
+	assert.Equal(t, 0, find(prob2, -0.1))
+	assert.Equal(t, 0, find(prob2, 0.12))
+	assert.Equal(t, 1, find(prob2, 0.13))
+	assert.Equal(t, 1, find(prob2, 0.49))
+	assert.Equal(t, 2, find(prob2, 0.50))
+}
+
+func TestRemove(t *testing.T) {
+	x := vector{0, 10, 200, 3000}
+
+	x = x.Remove(uint(0))
+	assert.Equal(t, vector{10, 200, 3000}, x)
+
+	x = x.Remove(uint(1))
+	assert.Equal(t, vector{10, 3000}, x)
+
+	x = x.Remove(uint(1))
+	assert.Equal(t, vector{10}, x)
+
+	x = x.Remove(uint(0))
+	assert.Equal(t, vector{}, x)
 }
