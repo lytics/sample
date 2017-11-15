@@ -2,6 +2,7 @@ package sample
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -37,21 +38,120 @@ func TestSampleFloats(t *testing.T) {
 	}
 }
 
-func TestRemoveIndex(t *testing.T) {
-	testIndex := index{1, 2, 3, 4}
+func testSampleOrder(t *testing.T, x []int, weights vector, replace bool, results []vector) {
+	assert.Equalf(t, len(x), len(results), "length of results must equal length of x")
 
-	// remove the 2th element
-	testIndex = testIndex.Remove(2)
-	assert.Equal(t, index{1, 2, 4}, testIndex)
+	// test sampling order
+	orders := make([][]int, len(x))
+	for i := range x {
+		orders[i] = make([]int, len(x))
+	}
 
-	// don't remove anything (removal out of bounds)
-	testIndex = testIndex.Remove(20)
-	assert.Equal(t, index{1, 2, 4}, testIndex)
+	niter := int(1e5)
+	for iter := 0; iter < niter; iter++ {
+		randorder, err := testSampler.SampleInts(x, len(x), replace, weights)
+		assert.Equal(t, nil, err)
+		for i, v := range randorder {
+			orders[i][v]++
+		}
+	}
+
+	probs := make([]vector, len(x))
+	for i := range x {
+		probs[i] = make(vector, len(x))
+	}
+
+	for i, order := range orders {
+		for j, count := range order {
+			probs[i][j] = float64(count) / float64(niter)
+		}
+	}
+
+	for i, prob := range probs {
+		assert.Tf(t, approxequal(prob, results[i], 0.05), "(%d) %v != %v", i, prob, results[i])
+	}
+}
+
+func TestEqualSampleWeighting(t *testing.T) {
+	testSampleOrder(t, []int{0, 1}, []float64{0.5, 0.5}, false, []vector{
+		vector{0.5, 0.5},
+		vector{0.5, 0.5},
+	})
+}
+
+func TestWeightedSamplingWOReplacement(t *testing.T) {
+	x := []int{0, 1, 2, 3}
+	weights := vector{1 / 3., 1 / 2., 1 / 4., 1 / 2.}
+	testSampleOrder(t, x, weights, false, []vector{
+		vector{0.211, 0.316, 0.158, 0.316},
+		vector{0.234, 0.289, 0.188, 0.289},
+		vector{0.272, 0.241, 0.246, 0.241},
+		vector{0.283, 0.154, 0.409, 0.154},
+	})
+}
+
+func TestUnweightedSamplingWOReplacement(t *testing.T) {
+	x := []int{0, 1, 2, 3}
+	testSampleOrder(t, x, nil, false, []vector{
+		vector{0.25, 0.25, 0.25, 0.25},
+		vector{0.25, 0.25, 0.25, 0.25},
+		vector{0.25, 0.25, 0.25, 0.25},
+		vector{0.25, 0.25, 0.25, 0.25},
+	})
+}
+
+func TestWeightedSamplingWReplacement(t *testing.T) {
+	x := []int{0, 1, 2, 3}
+	weights := vector{1 / 3., 1 / 2., 1 / 4., 1 / 2.}
+	scaled := weights.Scale()
+	testSampleOrder(t, x, weights, true, []vector{
+		scaled, scaled, scaled, scaled,
+	})
+}
+
+func TestUnweightedSamplingWReplacement(t *testing.T) {
+	x := []int{0, 1, 2, 3}
+	weights := vector{0.25, 0.25, 0.25, 0.25}
+	testSampleOrder(t, x, nil, true, []vector{
+		weights, weights, weights, weights,
+	})
+}
+
+func TestIndexMethods(t *testing.T) {
+	// remove elements
+	assert.Equal(t, index{2, 3, 4}, index{1, 2, 3, 4}.Remove(0))
+	assert.Equal(t, index{1, 3, 4}, index{1, 2, 3, 4}.Remove(1))
+	assert.Equal(t, index{1, 2, 4}, index{1, 2, 3, 4}.Remove(2))
+	assert.Equal(t, index{1, 2, 3}, index{1, 2, 3, 4}.Remove(3))
+	assert.Equal(t, index{1, 2, 3, 4}, index{1, 2, 3, 4}.Remove(4))
+}
+
+func TestVectorMethods(t *testing.T) {
+	v := vector{0.1, 0.2, 0.3, 0.4}
+	assert.T(t, approxequal(vector{0.1, 0.3, 0.6, 1.0}, v.CumProb(), 0.001))
+	v2 := v.Copy()
+	v2 = v2.Remove(2).Remove(200)
+	assert.T(t, approxequal(vector{1 / 7., 3 / 7., 7 / 7.}, v2.CumProb(), 0.001))
+}
+
+func TestErrors(t *testing.T) {
+	_, err := testSampler.SampleInts([]int{1, 9, 3}, 4, false, nil)
+	assert.NotEqual(t, nil, err)
+
+	_, err = testSampler.SampleInts([]int{1, 9, 3}, 2, true, vector{0.1, 0.1})
+	assert.NotEqual(t, nil, err)
+
+	_, err = testSampler.SampleFloats([]float64{0.1, 0.9, 0.3}, 4, false, nil)
+	assert.NotEqual(t, nil, err)
+
+	_, err = testSampler.SampleFloats([]float64{0.1, 0.9, 0.3}, 2, true, vector{0.1, 0.1})
+	assert.NotEqual(t, nil, err)
 }
 
 func TestFind(t *testing.T) {
 	w := vector{1, 2, 3}
 	prob := w.CumProb()
+
 	assert.Equal(t, 0, find(prob, -0.01))
 	assert.Equal(t, 0, find(prob, 0.0))
 	assert.Equal(t, 0, find(prob, 0.16))
@@ -83,4 +183,16 @@ func TestRemove(t *testing.T) {
 
 	x = x.Remove(uint(0))
 	assert.Equal(t, vector{}, x)
+}
+
+func approxequal(f1, f2 vector, precision float64) bool {
+	if len(f1) != len(f2) {
+		return false
+	}
+	for i := range f1 {
+		if math.Abs(f1[i]-f2[i]) > precision {
+			return false
+		}
+	}
+	return true
 }

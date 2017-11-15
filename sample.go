@@ -186,7 +186,7 @@ func sample(x index, n int, replace bool, weights vector, rnd func() float64) ([
 		if !replace {
 			x = x.Remove(idx)
 			weights2 = weights2.Remove(idx)
-			cumprob = weights2.Scale()
+			cumprob = weights2.Scale().CumProb()
 		}
 	}
 
