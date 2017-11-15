@@ -67,20 +67,11 @@ func testSampleOrder(t *testing.T, x []int, weights vector, replace bool, result
 		}
 	}
 
-	fmt.Printf("Testing:\n")
-	fmt.Printf("x:       %v\n", x)
-	fmt.Printf("weights: %v\n", weights)
-	fmt.Printf("replace: %v\n", replace)
-	for i, prob := range probs {
-		fmt.Printf("\ti(%d): %v\n", i, prob)
-	}
-
 	for i, prob := range probs {
 		assert.Tf(t, approxequal(prob, results[i], 0.05), "(%d) %v != %v", i, prob, results[i])
 	}
 }
 
-// sampler.summary(sampler(c(0.5, 0.5), replace = FALSE))
 func TestEqualSampleWeighting(t *testing.T) {
 	testSampleOrder(t, []int{0, 1}, []float64{0.5, 0.5}, false, []vector{
 		vector{0.5, 0.5},
@@ -88,7 +79,6 @@ func TestEqualSampleWeighting(t *testing.T) {
 	})
 }
 
-// sampler.summary(sampler(c(1/3, 1/2, 1/4, 1/2), replace = FALSE))
 func TestWeightedSamplingWOReplacement(t *testing.T) {
 	x := []int{0, 1, 2, 3}
 	weights := vector{1 / 3., 1 / 2., 1 / 4., 1 / 2.}
@@ -100,7 +90,6 @@ func TestWeightedSamplingWOReplacement(t *testing.T) {
 	})
 }
 
-// sampler.summary(sampler(rep(0.25, 4), replace = FALSE))
 func TestUnweightedSamplingWOReplacement(t *testing.T) {
 	x := []int{0, 1, 2, 3}
 	testSampleOrder(t, x, nil, false, []vector{
@@ -111,7 +100,6 @@ func TestUnweightedSamplingWOReplacement(t *testing.T) {
 	})
 }
 
-// sampler.summary(sampler(c(1/3, 1/2, 1/4, 1/2), replace = TRUE))
 func TestWeightedSamplingWReplacement(t *testing.T) {
 	x := []int{0, 1, 2, 3}
 	weights := vector{1 / 3., 1 / 2., 1 / 4., 1 / 2.}
@@ -121,7 +109,6 @@ func TestWeightedSamplingWReplacement(t *testing.T) {
 	})
 }
 
-// sampler.summary(sampler(rep(0.25, 4), replace = TRUE))
 func TestUnweightedSamplingWReplacement(t *testing.T) {
 	x := []int{0, 1, 2, 3}
 	weights := vector{0.25, 0.25, 0.25, 0.25}
